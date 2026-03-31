@@ -164,12 +164,11 @@ def _build_nudge_text(core_missing: List[str], core_errored: List[str]) -> str:
     if "youtube" in core_missing:
         if "youtube" in core_errored:
             free_suggestions.append(
-                "YouTube errored — check that yt-dlp is up to date: "
-                "brew upgrade yt-dlp"
+                "YouTube errored — check that yt-dlp is installed and up to date"
             )
         else:
             free_suggestions.append(
-                "YouTube: install yt-dlp — brew install yt-dlp"
+                "YouTube: install yt-dlp — Windows: `py -m pip install --user yt-dlp`; macOS: `brew install yt-dlp`"
             )
 
     if "reddit_comments" in core_missing:

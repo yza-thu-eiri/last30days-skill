@@ -6,12 +6,22 @@ presents it), but this module provides the detection and setup actions.
 """
 
 import logging
+import platform
 import shutil
 import subprocess
 from pathlib import Path
 from typing import Any, Dict, Optional
 
 logger = logging.getLogger(__name__)
+
+
+def _recommended_ytdlp_install_cmd() -> str:
+    system = platform.system()
+    if system == "Windows":
+        return "py -m pip install --user yt-dlp"
+    if shutil.which("brew") is not None:
+        return "brew install yt-dlp"
+    return "python -m pip install --user yt-dlp"
 
 
 def is_first_run(config: Dict[str, Any]) -> bool:
@@ -54,7 +64,7 @@ def run_auto_setup(config: Dict[str, Any]) -> Dict[str, Any]:
             _cookies, browser_name = result
             cookies_found[source_name] = browser_name
 
-    # Check yt-dlp availability and install via Homebrew if missing
+    # Check yt-dlp availability and install via Homebrew if available
     ytdlp_action: str
     if shutil.which("yt-dlp") is not None:
         ytdlp_installed = True
@@ -168,15 +178,15 @@ def get_setup_status_text(results: Dict[str, Any]) -> str:
     if ytdlp_action == "installed":
         lines.append("  - Installed yt-dlp via Homebrew")
     elif ytdlp_action == "install_failed":
-        lines.append("  - yt-dlp install failed \u2014 run `brew install yt-dlp` manually")
+        lines.append(f"  - yt-dlp install failed — run `{_recommended_ytdlp_install_cmd()}` manually")
     elif ytdlp_action == "no_homebrew":
-        lines.append("  - yt-dlp not found. Install Homebrew first, then: brew install yt-dlp")
+        lines.append(f"  - yt-dlp not found. Install it with: `{_recommended_ytdlp_install_cmd()}`")
     elif ytdlp_action == "already_installed":
         lines.append("  - yt-dlp already installed")
     elif results.get("ytdlp_installed", False):
         lines.append("  - yt-dlp is installed (YouTube search ready)")
     else:
-        lines.append("  - yt-dlp not found (install with: brew install yt-dlp)")
+        lines.append(f"  - yt-dlp not found (install with: `{_recommended_ytdlp_install_cmd()}`)")
 
     env_written = results.get("env_written", False)
     if env_written:

@@ -18,117 +18,116 @@ const SearchClient = withSearch(TwitterClientBase);
 
 const args = process.argv.slice(2);
 
-// --check: verify that credentials can be resolved
-if (args.includes('--check')) {
+function writeAndReturn(code, stdout = '', stderr = '') {
+  if (stdout) {
+    process.stdout.write(stdout);
+  }
+  if (stderr) {
+    process.stderr.write(stderr);
+  }
+  process.exitCode = code;
+  return code;
+}
+
+async function main() {
+  // --check: verify that credentials can be resolved
+  if (args.includes('--check')) {
+    try {
+      const { cookies, warnings } = await resolveCredentials({});
+      if (cookies.authToken && cookies.ct0) {
+        return writeAndReturn(0, JSON.stringify({ authenticated: true, source: cookies.source }));
+      }
+      return writeAndReturn(1, JSON.stringify({ authenticated: false, warnings }));
+    } catch (err) {
+      return writeAndReturn(1, JSON.stringify({ authenticated: false, error: err.message }));
+    }
+  }
+
+  // --whoami: check auth and output source
+  if (args.includes('--whoami')) {
+    try {
+      const { cookies } = await resolveCredentials({});
+      if (cookies.authToken && cookies.ct0) {
+        return writeAndReturn(0, cookies.source || 'authenticated');
+      }
+      return writeAndReturn(1, '', 'Not authenticated\n');
+    } catch (err) {
+      return writeAndReturn(1, '', `Auth check failed: ${err.message}\n`);
+    }
+  }
+
+  // Parse search args
+  let query = null;
+  let count = 20;
+  let jsonOutput = false;
+
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === '--count' && args[i + 1]) {
+      count = parseInt(args[i + 1], 10);
+      i++;
+    } else if (args[i] === '-n' && args[i + 1]) {
+      count = parseInt(args[i + 1], 10);
+      i++;
+    } else if (args[i] === '--json') {
+      jsonOutput = true;
+    } else if (!args[i].startsWith('-')) {
+      query = args[i];
+    }
+  }
+
+  if (!query) {
+    return writeAndReturn(1, '', 'Usage: node bird-search.mjs <query> [--count N] [--json]\n');
+  }
+
   try {
+    // Resolve credentials (env vars, then browser cookies)
     const { cookies, warnings } = await resolveCredentials({});
-    if (cookies.authToken && cookies.ct0) {
-      process.stdout.write(JSON.stringify({ authenticated: true, source: cookies.source }));
-      process.exit(0);
-    } else {
-      process.stdout.write(JSON.stringify({ authenticated: false, warnings }));
-      process.exit(1);
+
+    if (!cookies.authToken || !cookies.ct0) {
+      const msg = warnings.length > 0 ? warnings.join('; ') : 'No Twitter credentials found';
+      if (jsonOutput) {
+        return writeAndReturn(1, JSON.stringify({ error: msg, items: [] }));
+      }
+      return writeAndReturn(1, '', `Error: ${msg}\n`);
     }
-  } catch (err) {
-    process.stdout.write(JSON.stringify({ authenticated: false, error: err.message }));
-    process.exit(1);
-  }
-}
 
-// --whoami: check auth and output source
-if (args.includes('--whoami')) {
-  try {
-    const { cookies } = await resolveCredentials({});
-    if (cookies.authToken && cookies.ct0) {
-      process.stdout.write(cookies.source || 'authenticated');
-      process.exit(0);
-    } else {
-      process.stderr.write('Not authenticated\n');
-      process.exit(1);
+    // Create search client
+    const client = new SearchClient({
+      cookies: {
+        authToken: cookies.authToken,
+        ct0: cookies.ct0,
+        cookieHeader: cookies.cookieHeader,
+      },
+      timeoutMs: 30000,
+    });
+
+    // Run search
+    const result = await client.search(query, count);
+
+    if (!result.success) {
+      if (jsonOutput) {
+        return writeAndReturn(1, JSON.stringify({ error: result.error, items: [] }));
+      }
+      return writeAndReturn(1, '', `Search failed: ${result.error}\n`);
     }
-  } catch (err) {
-    process.stderr.write(`Auth check failed: ${err.message}\n`);
-    process.exit(1);
-  }
-}
 
-// Parse search args
-let query = null;
-let count = 20;
-let jsonOutput = false;
-
-for (let i = 0; i < args.length; i++) {
-  if (args[i] === '--count' && args[i + 1]) {
-    count = parseInt(args[i + 1], 10);
-    i++;
-  } else if (args[i] === '-n' && args[i + 1]) {
-    count = parseInt(args[i + 1], 10);
-    i++;
-  } else if (args[i] === '--json') {
-    jsonOutput = true;
-  } else if (!args[i].startsWith('-')) {
-    query = args[i];
-  }
-}
-
-if (!query) {
-  process.stderr.write('Usage: node bird-search.mjs <query> [--count N] [--json]\n');
-  process.exit(1);
-}
-
-try {
-  // Resolve credentials (env vars, then browser cookies)
-  const { cookies, warnings } = await resolveCredentials({});
-
-  if (!cookies.authToken || !cookies.ct0) {
-    const msg = warnings.length > 0 ? warnings.join('; ') : 'No Twitter credentials found';
+    // Output results
+    const tweets = result.tweets || [];
     if (jsonOutput) {
-      process.stdout.write(JSON.stringify({ error: msg, items: [] }));
-    } else {
-      process.stderr.write(`Error: ${msg}\n`);
+      return writeAndReturn(0, JSON.stringify(tweets));
     }
-    process.exit(1);
-  }
 
-  // Create search client
-  const client = new SearchClient({
-    cookies: {
-      authToken: cookies.authToken,
-      ct0: cookies.ct0,
-      cookieHeader: cookies.cookieHeader,
-    },
-    timeoutMs: 30000,
-  });
-
-  // Run search
-  const result = await client.search(query, count);
-
-  if (!result.success) {
-    if (jsonOutput) {
-      process.stdout.write(JSON.stringify({ error: result.error, items: [] }));
-    } else {
-      process.stderr.write(`Search failed: ${result.error}\n`);
-    }
-    process.exit(1);
-  }
-
-  // Output results
-  const tweets = result.tweets || [];
-  if (jsonOutput) {
-    process.stdout.write(JSON.stringify(tweets));
-  } else {
     for (const tweet of tweets) {
       const author = tweet.author?.username || 'unknown';
       process.stdout.write(`@${author}: ${tweet.text?.slice(0, 200)}\n\n`);
     }
+    return writeAndReturn(0);
+  } catch (err) {
+    if (jsonOutput) {
+      return writeAndReturn(1, JSON.stringify({ error: err.message, items: [] }));
+    }
+    return writeAndReturn(1, '', `Error: ${err.message}\n`);
   }
-
-  process.exit(0);
-} catch (err) {
-  if (jsonOutput) {
-    process.stdout.write(JSON.stringify({ error: err.message, items: [] }));
-  } else {
-    process.stderr.write(`Error: ${err.message}\n`);
-  }
-  process.exit(1);
 }
+
+await main();

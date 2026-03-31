@@ -39,7 +39,7 @@ _child_pids: set = set()
 _child_pids_lock = threading.Lock()
 
 TIMEOUT_PROFILES = {
-    "quick":   {"global": 90,  "future": 30, "reddit_future": 60,  "youtube_future": 60,  "tiktok_future": 90,   "instagram_future": 90,   "hackernews_future": 30,  "bluesky_future": 30,  "truthsocial_future": 30,  "polymarket_future": 15,  "http": 15, "enrich_per": 8,  "enrich_total": 30, "enrich_max_items": 10},
+    "quick":   {"global": 120, "future": 45, "reddit_future": 90,  "youtube_future": 60,  "tiktok_future": 90,   "instagram_future": 90,   "hackernews_future": 30,  "bluesky_future": 30,  "truthsocial_future": 30,  "polymarket_future": 15,  "http": 15, "enrich_per": 8,  "enrich_total": 40, "enrich_max_items": 10},
     "default": {"global": 180, "future": 60, "reddit_future": 90,  "youtube_future": 90,  "tiktok_future": 120,  "instagram_future": 120,  "hackernews_future": 60,  "bluesky_future": 60,  "truthsocial_future": 60,  "polymarket_future": 30,  "http": 30, "enrich_per": 15, "enrich_total": 45, "enrich_max_items": 15},
     "deep":    {"global": 300, "future": 90, "reddit_future": 120, "youtube_future": 120, "tiktok_future": 150,  "instagram_future": 150,  "hackernews_future": 90,  "bluesky_future": 90,  "truthsocial_future": 90,  "polymarket_future": 45,  "http": 30, "enrich_per": 15, "enrich_total": 60, "enrich_max_items": 25},
 }
@@ -1766,7 +1766,8 @@ def main():
     search_run_xiaohongshu = has_xiaohongshu
 
     # INCLUDE_SOURCES override: force specific sources on regardless of tier
-    _include_sources = {s.strip().lower() for s in config.get('INCLUDE_SOURCES', '').split(',') if s.strip()}
+    include_sources_raw = config.get('INCLUDE_SOURCES') or ''
+    _include_sources = {s.strip().lower() for s in include_sources_raw.split(',') if s.strip()}
     if _include_sources:
         if 'tiktok' in _include_sources and has_tiktok:
             if not search_run_tiktok:
@@ -1965,7 +1966,10 @@ def main():
         else:
             source_info["x_skip_reason"] = "No Bird CLI, XAI_API_KEY, or SCRAPECREATORS_API_KEY"
     if not has_ytdlp:
-        source_info["youtube_skip_reason"] = "yt-dlp not installed — fix: brew install yt-dlp"
+        source_info["youtube_skip_reason"] = (
+            "yt-dlp not installed — Windows: py -m pip install --user yt-dlp; "
+            "macOS: brew install yt-dlp"
+        )
     elif has_ytdlp and not report.youtube:
         source_info["youtube_skip_reason"] = "0 results (query may be too specific)"
     if not has_tiktok:

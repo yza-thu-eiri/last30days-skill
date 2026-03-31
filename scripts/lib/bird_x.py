@@ -68,7 +68,21 @@ def _extract_core_subject(topic: str) -> str:
     core product/concept name (max 5 words).
     """
     from .query import extract_core_subject
-    return extract_core_subject(topic, max_words=5, strip_suffixes=True)
+    core = extract_core_subject(topic, max_words=5, strip_suffixes=True)
+
+    # Preserve short uppercase acronyms from the original query. Terms like
+    # "RAG" carry more signal on X than the expanded phrase and are easy to
+    # lose during lowercasing/noise stripping.
+    acronyms = []
+    for token in topic.split():
+        cleaned = ''.join(ch for ch in token if ch.isalnum())
+        if 2 <= len(cleaned) <= 6 and cleaned.isupper() and cleaned.lower() not in core.split():
+            acronyms.append(cleaned.lower())
+
+    if acronyms:
+        merged = (core.split() + acronyms)[:6]
+        return ' '.join(merged)
+    return core
 
 
 def is_bird_installed() -> bool:
@@ -204,7 +218,16 @@ def _run_bird_search(query: str, count: int, timeout: int) -> Dict[str, Any]:
                 pass
 
         if proc.returncode != 0:
-            error = stderr.strip() if stderr else "Bird search failed"
+            error = stderr.strip() if stderr else ""
+            if not error and stdout:
+                try:
+                    payload = json.loads(stdout)
+                    if isinstance(payload, dict) and payload.get("error"):
+                        error = str(payload["error"])
+                except json.JSONDecodeError:
+                    pass
+            if not error:
+                error = "Bird search failed"
             return {"error": error, "items": []}
 
         output = stdout.strip() if stdout else ""

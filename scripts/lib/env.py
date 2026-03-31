@@ -77,6 +77,8 @@ class OpenAIAuth:
 def _check_file_permissions(path: Path) -> None:
     """Warn to stderr if a secrets file has overly permissive permissions."""
     try:
+        if os.name == "nt":
+            return
         mode = path.stat().st_mode
         # Check if group or other can read (bits 0o044)
         if mode & 0o044:
