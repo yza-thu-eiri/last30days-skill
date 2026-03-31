@@ -3,6 +3,7 @@
 import json
 import subprocess
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -93,6 +94,24 @@ class TestMockMode(unittest.TestCase):
         data = json.loads(stdout)
         self.assertIn("topic", data)
         self.assertEqual(data["topic"], "test topic")
+
+    def test_mock_save_dir_writes_flat_file(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            rc, stdout, stderr = _run(
+                ["--mock", "--save-dir", tmpdir, "test topic"],
+                timeout=120,
+            )
+            self.assertEqual(rc, 0, f"--save-dir failed: {stderr}")
+            self.assertTrue((Path(tmpdir) / "test-topic-raw.md").exists())
+
+    def test_mock_save_category_writes_nested_file(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            rc, stdout, stderr = _run(
+                ["--mock", "--save-dir", tmpdir, "--save-category", "AI Tools", "test topic"],
+                timeout=120,
+            )
+            self.assertEqual(rc, 0, f"--save-category failed: {stderr}")
+            self.assertTrue((Path(tmpdir) / "ai-tools" / "test-topic-raw.md").exists())
 
 
 if __name__ == "__main__":

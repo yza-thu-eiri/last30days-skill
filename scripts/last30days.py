@@ -20,6 +20,7 @@ import argparse
 import atexit
 import json
 import os
+import re
 import signal
 import sys
 import threading
@@ -48,6 +49,27 @@ VALID_SEARCH_SOURCES = {
     "reddit", "x", "hn", "bluesky", "bsky", "truthsocial", "truth", "youtube", "tiktok", "instagram",
     "polymarket", "web", "xiaohongshu", "xhs",
 }
+
+
+def slugify_component(value: str, *, fallback: str) -> str:
+    """Convert a user-provided topic/category into a filesystem-safe slug."""
+    slug = re.sub(r"[^a-z0-9]+", "-", value.lower()).strip("-")
+    return (slug[:60] or fallback)
+
+
+def build_save_path(save_dir: Path, topic: str, category: str | None = None, *, now: datetime | None = None) -> Path:
+    """Build the output path for a saved research report."""
+    now = now or datetime.now()
+    target_dir = save_dir
+    if category:
+        target_dir = target_dir / slugify_component(category, fallback="uncategorized")
+    target_dir.mkdir(parents=True, exist_ok=True)
+
+    slug = slugify_component(topic, fallback="topic")
+    save_path = target_dir / f"{slug}-raw.md"
+    if save_path.exists():
+        save_path = target_dir / f"{slug}-raw-{now.strftime('%Y-%m-%d')}.md"
+    return save_path
 
 
 def parse_search_flag(search_str: str) -> set:
@@ -1511,6 +1533,13 @@ def main():
         metavar="DIR",
         help="Auto-save raw research output to DIR/{topic-slug}.md",
     )
+    parser.add_argument(
+        "--save-category",
+        type=str,
+        default=None,
+        metavar="NAME",
+        help="Save raw research output under DIR/{category-slug}/{topic-slug}.md when used with --save-dir",
+    )
 
     args = parser.parse_args()
     args.topic = " ".join(args.topic) if args.topic else None
@@ -1964,13 +1993,8 @@ def main():
 
     # Auto-save raw research to file if --save-dir is set
     if args.save_dir:
-        import re
         save_dir = Path(args.save_dir).expanduser()
-        save_dir.mkdir(parents=True, exist_ok=True)
-        slug = re.sub(r'[^a-z0-9]+', '-', args.topic.lower()).strip('-')[:60]
-        save_path = save_dir / f"{slug}-raw.md"
-        if save_path.exists():
-            save_path = save_dir / f"{slug}-raw-{datetime.now().strftime('%Y-%m-%d')}.md"
+        save_path = build_save_path(save_dir, args.topic, args.save_category)
         content = render.render_compact(report, missing_keys=missing_keys)
         if quality and quality.get("nudge_text"):
             content += "\n" + render.render_quality_nudge(quality)

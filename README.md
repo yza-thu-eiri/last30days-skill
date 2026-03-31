@@ -22,7 +22,7 @@ clawhub install last30days-official
 - **SessionStart config check** - validates your config automatically when a Claude Code session starts.
 - **Expanded test coverage** - 455+ tests across all modules.
 
-**New in v2.9.1 — Auto-save to ~/Documents/Last30Days/:** Every run now saves the complete briefing as a topic-named `.md` file to your Documents folder. Build a personal research library automatically. Inspired by [@devin_explores](https://x.com/devin_explores).
+**New in v2.9.1 — Auto-save to ~/Documents/Last30Days/:** Every run now saves the complete briefing as a topic-named `.md` file to your Documents folder. Build a personal research library automatically. Inspired by [@devin_explores](https://x.com/devin_explores). If you want folders by theme, use `--save-category=<name>` together with `--save-dir`.
 
 **New in v2.9 — ScrapeCreators Reddit + Top Comments + Smart Discovery:**
 
@@ -67,6 +67,29 @@ git clone https://github.com/mvanhorn/last30days-skill.git ~/.claude/skills/last
 ```
 
 That's it. Reddit, Hacker News, and Polymarket work immediately with zero configuration. Run `/last30days` to unlock more sources.
+
+## Keeping a Fork Synced
+
+If you maintain local customizations, keep `main` as the upstream-tracking branch and do your own work on a separate branch.
+
+Recommended setup:
+
+```bash
+git remote add upstream https://github.com/mvanhorn/last30days-skill.git
+git remote set-url origin https://github.com/<your-user>/last30days-skill.git
+git checkout main
+git fetch upstream
+git merge --ff-only upstream/main
+git push origin main
+```
+
+For local one-command sync on Windows, run:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\sync-upstream.ps1 -Push
+```
+
+This repository also includes `.github/workflows/sync-upstream.yml` for scheduled fork syncs on GitHub.
 
 ---
 
@@ -966,6 +989,7 @@ This example shows /last30days discovering **emerging developer workflows** - re
 | `--sources=x` | X only |
 | `--include-web` | Add native web search alongside Reddit/X (requires web search API key) |
 | `--store` | Persist findings to SQLite database for watchlist/briefing integration |
+| `--save-category=NAME` | When used with `--save-dir`, writes to `DIR/{category-slug}/{topic-slug}-raw.md` |
 | `--diagnose` | Show source availability diagnostics (API keys, Bird, YouTube, web backends) and exit |
 
 ## Requirements
